@@ -2,10 +2,9 @@
 
 set -euo pipefail
 
-# TODO: Ensure this is the correct GitHub homepage where releases can be downloaded for helm-secrets-getter.
 GH_REPO="https://github.com/jkroepke/helm-secrets"
 TOOL_NAME="helm-secrets-getter"
-TOOL_TEST="helm secrets --help"
+HELM_PLUGINS_FOLDER="${HOME}/.local/share/helm/plugins"
 
 fail() {
 	echo -e "asdf-$TOOL_NAME: $*"
@@ -14,7 +13,7 @@ fail() {
 
 curl_opts=(-fsSL)
 
-# NOTE: You might want to remove this if helm-secrets-getter is not hosted on GitHub releases.
+# NOTE: You might want to remove this if helm-secrets is not hosted on GitHub releases.
 if [ -n "${GITHUB_API_TOKEN:-}" ]; then
 	curl_opts=("${curl_opts[@]}" -H "Authorization: token $GITHUB_API_TOKEN")
 fi
@@ -31,8 +30,6 @@ list_github_tags() {
 }
 
 list_all_versions() {
-	# TODO: Adapt this. By default we simply list the tag names from GitHub releases.
-	# Change this function if helm-secrets-getter has other means of determining installable versions.
 	list_github_tags
 }
 
@@ -41,11 +38,16 @@ download_release() {
 	version="$1"
 	filename="$2"
 
-	# TODO: Adapt the release URL convention for helm-secrets-getter
 	url="$GH_REPO/archive/v${version}.tar.gz"
 
 	echo "* Downloading $TOOL_NAME release $version..."
 	curl "${curl_opts[@]}" -o "$filename" -C - "$url" || fail "Could not download $url"
+}
+
+setup_helm_plugin_usage() {
+	rm -rf "${HELM_PLUGINS_FOLDER}/helm-secrets-getter" || true
+	mkdir -p "${HELM_PLUGINS_FOLDER}" || fail "Could not create directory '${HELM_PLUGINS_FOLDER}'"
+	ln -s "${ASDF_INSTALL_PATH}/bin/plugins/helm-secrets-getter" "${HELM_PLUGINS_FOLDER}/helm-secrets-getter" || fail "Could not link plugin to helm"
 }
 
 install_version() {
@@ -61,10 +63,11 @@ install_version() {
 		mkdir -p "$install_path"
 		cp -r "$ASDF_DOWNLOAD_PATH"/* "$install_path"
 
-		# TODO: Assert helm-secrets-getter executable exists.
 		local tool_cmd
-		tool_cmd="$(echo "$TOOL_TEST" | cut -d' ' -f1)"
+		tool_cmd="scripts/run.sh"
 		test -x "$install_path/$tool_cmd" || fail "Expected $install_path/$tool_cmd to be executable."
+
+		setup_helm_plugin_usage
 
 		echo "$TOOL_NAME $version installation was successful!"
 	) || (
